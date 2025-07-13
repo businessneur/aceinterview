@@ -340,3 +340,31 @@ For issues related to:
 - [Google Cloud](https://cloud.google.com/) for Speech and Gemini AI
 - [Anthropic](https://anthropic.com/) for Claude models
 - [React](https://reactjs.org/) and [Vite](https://vitejs.dev/) for the frontend framework
+
+Docker Commands
+
+PS C:\Users\Naveen.Dundareddi\OneDrive - ASOS.com Ltd\Documents\GitHub_OpenSource\aceInterview> docker build -t aceinterview:latest .
+
+docker build -t aceinterview:latest .
+
+docker images
+
+docker ps  -a
+
+docker stop first_docker
+
+docker rm first_docker
+
+docker run --name first_docker -p 3000:3000/tcp -d aceinterview
+
+docker compose build backend
+
+docker compose up
+
+--- Only below required to run---
+docker compose up --build
+
+docker rm aceinterview-frontend-1
+
+docker rm aceinterview-backend-1 
+---
