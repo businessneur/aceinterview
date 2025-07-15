@@ -1,40 +1,3 @@
-Removing Noise Cancellation module for optimizing. 
-
-try:
-    from livekit.plugins.noise_cancellation import BVC
-except ImportError:
-    print("livekit-plugins-noise-cancellation not installed. Install with: pip install livekit-plugins-noise-cancellation")
-    BVC = None
-
-Removed Turn Detection module from Livekit. Instead using just Silerio VAD which is light weight. 
-Doing this to optimize Memory. 
-
-try:
-    from livekit.plugins.turn_detector.english import EnglishModel
-except ImportError:
-    print("livekit-plugins-turn-detector not installed. Install with: pip install livekit-plugins-turn-detector")
-    exit(1)
-
-
-try:
-    from livekit.plugins import google
-except ImportError:
-    print("livekit-plugins not installed. Install with: pip install livekit-plugins-google")
-    exit(1)
-
-try:
-    from livekit.plugins import elevenlabs
-except ImportError:
-    print("livekit-plugins-elevenlabs not installed. Install with: pip install livekit-plugins-elevenlabs")
-    exit(1)
-
-
-Removed Reload functionality of uvicorn for production environment.  
-Need to set environment variable ENVIRONMENT=production.
-
-
-
-
 
 
 
@@ -44,20 +7,20 @@ Need to set environment variable ENVIRONMENT=production.
 A comprehensive AI-powered interview practice application that uses Large Language Models (LLMs) and LiveKit for real-time voice interviews, generating dynamic, contextual interview questions and providing intelligent feedback.
 
 ## 🚀 Features
-
 ### 🎙️ **LiveKit Voice Interviews**
 - **Real-time voice communication** using LiveKit WebRTC infrastructure
 - **AI-powered voice interviewer** that speaks questions and listens to responses
 - **Speech-to-text transcription** for response analysis
-- **Low-latency audio streaming** for natural conversation flow
-- **Connection recovery** and session management
+
+
+
 - **Multi-participant support** for group interviews (future enhancement)
 
 ### 🤖 **LLM-Powered Question Generation**
 - Dynamic question generation based on your specific topic, experience level, and interview style
 - Contextual follow-up questions that adapt to your responses
 - Company-specific scenarios when target company is provided
-- Support for multiple LLM providers (OpenAI GPT-4, Anthropic Claude, Google Gemini)
+
 
 ### 🎯 **Interview Types**
 - **Technical Interviews**: Code problems, system design, technical concepts
@@ -73,13 +36,6 @@ A comprehensive AI-powered interview practice application that uses Large Langua
 - Performance tracking across multiple dimensions
 - Voice interview session recordings and playback
 
-### 🎙️ **Advanced Interface**
-- **Voice-first interview experience** with LiveKit integration
-- Speech-to-text input capability with fallback text input
-- Real-time interview simulation with audio feedback
-- Progress tracking and timer
-- Note-taking functionality during voice interviews
-- Responsive design for all devices
 
 ## 🛠️ Tech Stack
 
@@ -88,14 +44,9 @@ A comprehensive AI-powered interview practice application that uses Large Langua
 - **Tailwind CSS** for styling
 - **Vite** for build tooling
 - **LiveKit Client SDK** for real-time communication
-- **Lucide React** for icons
 
 ### Backend
-- **Node.js** with Express
-- **LiveKit Server SDK** for room management
-- **Multiple LLM Providers**: OpenAI, Anthropic, Google Gemini
-- **Agentic AI Framework** for intelligent question generation
-- **WebSocket** support for real-time communication
+- Python based pydantic AI backend with livekit integration
 
 ### AI Agents (Python)
 - **LiveKit Agents Framework** (Python)
@@ -340,6 +291,12 @@ For issues related to:
 - [Google Cloud](https://cloud.google.com/) for Speech and Gemini AI
 - [Anthropic](https://anthropic.com/) for Claude models
 - [React](https://reactjs.org/) and [Vite](https://vitejs.dev/) for the frontend framework
+
+
+Removed Noise Cancellation module for optimizing. 
+
+Removed Reload functionality of uvicorn for production environment.  
+Need to set environment variable ENVIRONMENT=production.
 
 Docker Commands
 
