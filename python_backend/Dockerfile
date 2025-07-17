@@ -19,11 +19,6 @@ COPY . .
 # Adjust the port number as necessary for your application
 EXPOSE 3001
 
-# Add a command to download required models before starting the app
-# This assumes your main application file is named 'main.py'
-# Download required models before starting the app
-RUN python livekit_voice_agent.py download-files
-
 # Command to run the application
 # This assumes your main application file is named 'main.py'
 # Adjust the command as necessary for your application

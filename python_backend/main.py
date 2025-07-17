@@ -52,13 +52,14 @@ load_dotenv()
 
 # Configure logging
 log_level = "WARNING" if os.getenv("ENVIRONMENT", "development") == "production" else "INFO"
-logger.add("logs/app.log", rotation="500 MB", level=log_level)
 
 # Global services
 orchestrator: Optional[AgenticOrchestrator] = None
 performance_orchestrator: Optional[PerformanceAnalysisOrchestrator] = None
 livekit_service: Optional[LiveKitService] = None
 voice_service: Optional[VoiceInterviewService] = None
+
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -80,19 +81,10 @@ async def lifespan(app: FastAPI):
         logger.error(f"❌ Failed to initialize services: {e}")
         raise
 
-    # Start the LiveKit agent worker as a subprocess
-    agent_script = os.path.join(os.path.dirname(__file__), "livekit_voice_agent.py")
-    agent_worker_process = subprocess.Popen([sys.executable, agent_script, "start"])
-    logger.info("✅ Started livekit_voice_agent.py as a subprocess")
-
     yield
     
     # Cleanup on shutdown
     logger.info("🛑 Shutting down AI Interview Platform")
-    if agent_worker_process:
-        agent_worker_process.terminate()
-        agent_worker_process.wait()
-        logger.info("🛑 livekit_voice_agent.py subprocess terminated")
 
 # Create FastAPI app
 app = FastAPI(
@@ -302,8 +294,6 @@ async def end_voice_interview(request: VoiceInterviewStartRequest):
             raise HTTPException(status_code=400, detail="room_name is required to end the agent session")
         
         # Clean up the room and any related resources
-        if voice_service:
-            await voice_service.end_voice_interview(request)
         if livekit_service:
             await livekit_service.delete_room(room_name)
         
@@ -407,8 +397,7 @@ async def debug_process_memory():
 
 if __name__ == "__main__":
     import uvicorn
-
-    port = int(os.getenv("PORT"))  # Only use the port Render provides
+    port = int(os.getenv("PORT","3001"))  # Only use the port Render provides
     reload_flag = os.getenv("ENVIRONMENT", "development") != "production"
     uvicorn.run(
         "main:app",

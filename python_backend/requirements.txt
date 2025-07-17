@@ -10,7 +10,7 @@ websockets==13.1
 
 # Pydantic - exact compatible versions
 pydantic==2.10.3
-pydantic-ai-slim[openai]==0.0.14
+pydantic-ai-slim==0.4.2
 
 # LLM providers - exact compatible versions
 openai==1.84.0
@@ -18,14 +18,6 @@ google-generativeai==0.8.3
 
 # LiveKit core - using latest 1.x versions for compatibility with 1.1.4 plugins
 livekit==1.0.11
-livekit-agents==1.1.4
 livekit-api==1.0.3
 
-# LiveKit plugins - using ACTUAL available versions from error messages
-
-livekit-plugins-gladia==1.1.4        # Latest available version
-livekit-plugins-silero==1.1.4
-livekit-plugins-google
-livekit-plugins-elevenlabs           # Latest available version
-livekit-plugins-turn-detector==1.1.4  # Latest available version
 

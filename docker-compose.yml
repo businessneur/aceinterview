@@ -6,9 +6,20 @@ services:
       - "3000:3000"
     depends_on:
       - backend
+    mem_limit: 512m  # Sufficient for Node.js frontend  
 
   backend:
     build:
       context: ./python_backend
     ports:
       - "3001:3001"  # Change to your backend port if needed
+    mem_limit: 3.5g  # Sufficient for turn detection models  
+    memswap_limit: 3.5g  
+    environment:  
+      - PYTHONUNBUFFERED=1 
+
+  voice_agent:
+    build:
+      context: ./python_backend/livekit_voice_agent 
+    environment:  
+      - PYTHONUNBUFFERED=1 
