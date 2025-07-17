@@ -12,7 +12,7 @@ COPY requirements.txt ./
 # Use --no-cache-dir to avoid caching the installed packages
 # Ensure your requirements.txt includes all LiveKit Agents and plugin dependencies
 # e.g., livekit-agents[google,elevenlabs,gladia,silero,turn-detector]
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -r requirements.txt
 
 # Copy your LiveKit voice agent script
 # Copy the rest of the application code

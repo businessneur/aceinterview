@@ -127,7 +127,8 @@ async def entrypoint(ctx: agents.JobContext):
         #turn_detection="stt",#EnglishModel(),
         vad=silero.VAD.load(),
         #vad=vad, #silero.VAD.load(),
-        turn_detection=EnglishModel()#"vad"    #MultilingualModel(),  #EnglishModel() Use VAD for turn detection
+        #turn_detection=EnglishModel()#"vad"    #MultilingualModel(),  #EnglishModel() Use VAD for turn detection
+        turn_detection=MultilingualModel(),
     )
 
     await session.start(
