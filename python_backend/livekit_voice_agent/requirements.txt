@@ -6,6 +6,7 @@ loguru==0.7.2
 # LLM providers - exact compatible versions
 openai==1.84.0
 google-generativeai==0.8.3
+pydantic-ai-slim[google]
 
 # LiveKit core - using latest 1.x versions for compatibility with 1.1.4 plugins
 livekit==1.0.11
@@ -16,7 +17,7 @@ livekit-api==1.0.3
 transformers >=4.47.1
 numpy >=1.26
 onnxruntime >=1.18
-jinja2
+jinja2>=3.1.2
 
 livekit-plugins-gladia==1.1.7        # Latest available version
 livekit-plugins-silero==1.1.7

@@ -324,4 +324,24 @@ docker compose up --build
 docker rm aceinterview-frontend-1
 
 docker rm aceinterview-backend-1 
+
+
+⚡ Summary: New Fast Workflow
+Task	                                    Use This Command
+Edit code in frontend	                  docker compose restart frontend
+Edit code in backend	                     docker compose restart backend
+Edit only .py code	                     docker compose restart voice_agent
+Debug inside container	                  docker compose exec voice_agent bash
+Edit requirements.txt or Dockerfile	      docker compose up --build
+
 ---
+
+Running indivudial dockers for testing:
+
+Building the Docker:  docker build -t livekit_voice_agent .
+Running the docker:   docker run -it livekit_voice_agent
+
+
+Livekit playground for testing: 
+
+Connect via the Agents Playground at https://agents-playground.livekit.io/

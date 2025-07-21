@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   frontend:
     build: .
@@ -6,20 +5,26 @@ services:
       - "3000:3000"
     depends_on:
       - backend
-    mem_limit: 512m  # Sufficient for Node.js frontend  
+    mem_limit: 512m
+    #volumes:
+    #  - .:/app  # optimized for dev
 
   backend:
     build:
       context: ./python_backend
     ports:
-      - "3001:3001"  # Change to your backend port if needed
-    mem_limit: 3.5g  # Sufficient for turn detection models  
-    memswap_limit: 3.5g  
+      - "3001:3001"
     environment:  
-      - PYTHONUNBUFFERED=1 
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./python_backend:/app  # <--- mount backend code
+    command: ["python", "main.py"]  # optional override
 
   voice_agent:
     build:
-      context: ./python_backend/livekit_voice_agent 
+      context: ./python_backend/livekit_voice_agent
     environment:  
-      - PYTHONUNBUFFERED=1 
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./python_backend/livekit_voice_agent:/app # <--- mount voice agent code
+    command: ["python", "livekit_voice_agent.py", "start"]

@@ -10,3 +10,5 @@ websockets==13.1
 # LLM providers - exact compatible versions
 openai==1.84.0
 google-generativeai==0.8.3
+pydantic-ai-slim[google]
+
