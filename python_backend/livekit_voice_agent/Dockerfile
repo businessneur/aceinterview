@@ -3,33 +3,28 @@
 FROM python:3.11-slim
 
 # Install PulseAudio client libraries
-RUN apt-get update && apt-get install -y pulseaudio pulseaudio-utils
+#RUN apt-get update && apt-get install -y pulseaudio pulseaudio-utils
 
 # Set the PulseAudio server to the host machine
-ENV PULSE_SERVER=host.docker.internal
+#ENV PULSE_SERVER=host.docker.internal
 
 # Set the working directory in the container
 WORKDIR /app
 
 
 # Install gcc and other build dependencies.
-RUN apt-get update &&     apt-get install -y     gcc     python3-dev     portaudio19-dev     && rm -rf /var/lib/apt/lists/*
+#commented    RUN apt-get update &&     apt-get install -y     gcc     python3-dev     portaudio19-dev     && rm -rf /var/lib/apt/lists/*
 
 # Install common runtime dependencies for C/C++ extensions
 # libstdc++6: GNU Standard C++ Library (required by many C++ compiled Python packages)
 # libgomp1: GNU OpenMP (Open Multi-Processing) runtime library (for parallel processing)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libstdc++6 \
-    libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
-
-
 # Add CPU optimization libraries for better ONNX performance  
-RUN apt-get update && apt-get install -y --no-install-recommends \  
-    libstdc++6 \  
-    libgomp1 \  
-    libomp-dev \  
-    && rm -rf /var/lib/apt/lists/*
+#commented
+#RUN apt-get update && apt-get install -y --no-install-recommends \  
+#    libstdc++6 \  
+#    libgomp1 \  
+#    libomp-dev \  
+#    && rm -rf /var/lib/apt/lists/*
 
 
 # Copy only the requirements file first to leverage Docker's build cache

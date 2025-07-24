@@ -24,4 +24,5 @@ livekit-plugins-silero==1.1.7
 livekit-plugins-google==1.1.7
 livekit-plugins-elevenlabs==1.1.7           # Latest available version
 livekit-plugins-turn-detector==1.1.7  # Latest available version
+livekit-plugins-noise-cancellation==0.2.5  # Latest available version
 

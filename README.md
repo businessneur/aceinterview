@@ -314,6 +314,7 @@ docker rm first_docker
 
 docker run --name first_docker -p 3000:3000/tcp -d aceinterview
 
+# command to build only backend
 docker compose build backend
 
 docker compose up

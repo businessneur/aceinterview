@@ -14,7 +14,7 @@ import logging
 logger = logging.getLogger("livekit.agents").setLevel(logging.INFO)
 
 from livekit import agents
-from livekit.agents import Agent, AgentSession, WorkerOptions, AutoSubscribe,JobContext
+from livekit.agents import Agent, AgentSession, WorkerOptions, AutoSubscribe,JobContext,RoomInputOptions,RoomOutputOptions
 
 
 # Import plugins from their specific packages
@@ -26,12 +26,11 @@ except ImportError as e:
     print("Will fall back to VAD for turn detection. Install with: pip install livekit-plugins-turn-detector")
 
 # Import plugins from their specific packages
-#try:
-#    from livekit.plugins.turn_detector.multilingual import MultilingualModel
-#    print("Multilingual Model imported successfully")
-#except ImportError as e:
-#    print(f"livekit-plugins-turn-detector not installed or MultilingualModel not available: {e}")
-#    print("Will fall back to VAD for turn detection. Install with: pip install livekit-plugins-turn-detector")
+try:
+    from livekit.plugins import noise_cancellation
+    print("BVC Noise Cancellation imported successfully")
+except ImportError as e:
+    print(f"BVC Noise Cancellation not installed or not available: {e}")
 
 try:
     from livekit.plugins import google
@@ -137,7 +136,16 @@ async def entrypoint(ctx: agents.JobContext):
     await session.start(
         room=ctx.room,
         agent=Assistant(ctx=ctx, user_context=user_context),
+        room_input_options=RoomInputOptions(
+            # LiveKit Cloud enhanced noise cancellation
+            # - If self-hosting, omit this parameter
+            # - For telephony applications, use `BVCTelephony` for best results
+            noise_cancellation=noise_cancellation.BVC(),
+        ),
+        room_output_options=RoomOutputOptions(transcription_enabled=True),
+        
     )
+
     
     await ctx.connect(auto_subscribe=AutoSubscribe.SUBSCRIBE_ALL)
 
@@ -146,7 +154,7 @@ if __name__ == "__main__":
         WorkerOptions(
             entrypoint_fnc=entrypoint,
             #prewarm_fnc=prewarm_fnc,
-            agent_name=os.environ.get("LIVEKIT_AGENT_ID", "voice-agent"), 
+            #agent_name=os.environ.get("LIVEKIT_AGENT_ID", "voice-agent"), 
             ws_url=os.environ["LIVEKIT_WS_URL"],
             api_key=os.environ["LIVEKIT_API_KEY"],
             api_secret=os.environ["LIVEKIT_API_SECRET"],
