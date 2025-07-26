@@ -1,0 +1,14 @@
+# Core backend dependencies
+fastapi==0.115.6
+python-dotenv==1.0.1
+httpx==0.28.1
+aiofiles==24.1.0
+python-multipart==0.0.12
+loguru==0.7.2
+websockets==13.1
+
+# LLM providers - exact compatible versions
+openai==1.84.0
+google-generativeai==0.8.3
+pydantic-ai-slim[google]
+

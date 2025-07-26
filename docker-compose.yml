@@ -1,0 +1,30 @@
+services:
+  frontend:
+    build: .
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    mem_limit: 512m
+    #volumes:
+    #  - .:/app  # optimized for dev
+
+  backend:
+    build:
+      context: ./python_backend
+    ports:
+      - "3001:3001"
+    environment:  
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./python_backend:/app  # <--- mount backend code
+    command: ["python", "main.py"]  # optional override
+
+  voice_agent:
+    build:
+      context: ./python_backend/livekit_voice_agent
+    environment:  
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./python_backend/livekit_voice_agent:/app # <--- mount voice agent code
+    command: ["python", "livekit_voice_agent.py", "start"]
