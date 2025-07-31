@@ -12,6 +12,7 @@ psutil
 # Pydantic - exact compatible versions
 pydantic==2.10.3
 pydantic-ai-slim==0.4.2
+pydantic-ai-slim[google]
 
 # LLM providers - exact compatible versions
 openai==1.84.0

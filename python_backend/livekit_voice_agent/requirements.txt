@@ -17,11 +17,12 @@ livekit-api==1.0.3
 transformers >=4.47.1
 numpy >=1.26
 onnxruntime >=1.18
-jinja2
+jinja2>=3.1.2
 
 livekit-plugins-gladia==1.1.7        # Latest available version
 livekit-plugins-silero==1.1.7
 livekit-plugins-google==1.1.7
 livekit-plugins-elevenlabs==1.1.7           # Latest available version
 livekit-plugins-turn-detector==1.1.7  # Latest available version
+livekit-plugins-noise-cancellation==0.2.5  # Latest available version
 

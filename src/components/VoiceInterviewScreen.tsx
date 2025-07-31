@@ -157,11 +157,14 @@ export const VoiceInterviewScreen: React.FC<VoiceInterviewScreenProps> = ({
   useEffect(() => {
     const initializeAudio = async () => {
       try {
-        // Initialize AudioContext for better audio control
-        if (!audioContextRef.current) {
-          audioContextRef.current = new ((window as any).AudioContext || (window as any).webkitAudioContext)();
-          console.log('🎵 AudioContext initialized');
+        // 🔁 Close any existing context (important for repeated tests)
+        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+          await audioContextRef.current.close();
+          console.log('🎧 Closed previous AudioContext');
         }
+        // ✅ Create a new AudioContext
+        audioContextRef.current = new ((window as any).AudioContext || (window as any).webkitAudioContext)();
+        console.log('🎧 New AudioContext initialized');
 
         // Initialize Speech Synthesis for fallback TTS
         if ('speechSynthesis' in window) {
@@ -173,20 +176,61 @@ export const VoiceInterviewScreen: React.FC<VoiceInterviewScreenProps> = ({
         console.error('❌ Error initializing audio:', error);
       }
     };
-
-    initializeAudio();
+    
+    // Call the initialize function
+    void initializeAudio();
 
     return () => {
-      // Cleanup audio elements
+      console.log('🧹 Running cleanup on unmount or interview end');
+
+      // Stop and remove all audio elements
       audioElementsRef.current.forEach(audio => {
-        audio.pause();
-        audio.remove();
+        try {
+          audio.pause();
+          audio.srcObject = null;
+          audio.remove();
+        } catch (e) {
+          console.warn('Error cleaning up audio element:', e);
+        }
       });
       audioElementsRef.current.clear();
 
-      // Close audio context
-      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-        audioContextRef.current.close();
+        // Stop local audio track
+      if (localAudioTrack) {
+        try {
+          localAudioTrack.stop();
+          console.log('🎤 Local audio track stopped');
+        } catch (e) {
+          console.warn('Error stopping local audio track:', e);
+        }
+      }
+
+      // Cancel speech synthesis if active
+      if (speechSynthesisRef.current) {
+        speechSynthesisRef.current.cancel();
+      }
+
+        // Close and reset audio context
+      if (audioContextRef.current) {
+        try {
+          if (audioContextRef.current.state !== 'closed') {
+            audioContextRef.current.close();
+            console.log('🎧 AudioContext closed');
+          }
+        } catch (e) {
+          console.warn('Error closing AudioContext:', e);
+        } finally {
+          audioContextRef.current = null;
+        }
+      }
+        // Disconnect from LiveKit room
+      if (disconnectLiveKit) {
+        try {
+          disconnectLiveKit();
+          console.log('📡 LiveKit room disconnected');
+        } catch (e) {
+          console.warn('Error disconnecting LiveKit room:', e);
+        }
       }
     };
   }, []);
@@ -201,6 +245,24 @@ export const VoiceInterviewScreen: React.FC<VoiceInterviewScreenProps> = ({
     }
     return () => clearInterval(interval);
   }, [isInterviewActive, startTime]);
+
+
+  const playWithRetry = async (audioElement: HTMLAudioElement, retries = 3) => {
+    try {
+      await audioElement.play();
+      console.log('✅ Audio played successfully');
+    } catch (error: any) {
+      console.warn(`⚠️ play() failed (${4 - retries}/3):`, error);
+      if (retries > 0) {
+        setTimeout(() => {
+            void playWithRetry(audioElement, retries - 1);
+            }, 600);
+      } else {
+        setShowAutoplayPrompt(true);
+      }
+    }
+  };
+
 
   // Enhanced remote audio track handling with proper audio playback and autoplay detection
   useEffect(() => {
@@ -275,20 +337,7 @@ export const VoiceInterviewScreen: React.FC<VoiceInterviewScreenProps> = ({
             audioElementsRef.current.set(trackId, audioElement);
             
             // Force play if needed (handle autoplay restrictions)
-            const playPromise = audioElement.play();
-            if (playPromise) {
-              playPromise
-                .then(() => {
-                  console.log(`✅ Audio autoplay successful for track: ${trackId}`);
-                  setShowAutoplayPrompt(false);
-                })
-                .catch((error: any) => {
-                  console.warn(`⚠️ Autoplay prevented for track ${trackId}:`, error);
-                  if (error.name === 'NotAllowedError') {
-                    setShowAutoplayPrompt(true);
-                  }
-                });
-            }
+            playWithRetry(audioElement);
             
           } catch (attachError) {
             console.error(`❌ Error attaching track ${trackId}:`, attachError);
@@ -350,7 +399,10 @@ export const VoiceInterviewScreen: React.FC<VoiceInterviewScreenProps> = ({
           console.log('[VoiceInterview] ========== ATTEMPTING LIVEKIT CONNECTION ==========');
           
           await connectLiveKit();
-          
+          if (audioContextRef.current?.state === 'suspended') {
+          await audioContextRef.current.resume();
+          console.log('🎧 AudioContext resumed after connect');
+          }
           setIsInterviewActive(true);
           setStartTime(Date.now());
           setIsThinking(false);
@@ -406,14 +458,27 @@ export const VoiceInterviewScreen: React.FC<VoiceInterviewScreenProps> = ({
   }, [transcript, conversationHistory]);
 
   // Enable audio function for autoplay prompt
-  const enableAudio = () => {
+const enableAudio = async () => {
+  try {
+    // Resume AudioContext if it's suspended
+    if (audioContextRef.current?.state === 'suspended') {
+      await audioContextRef.current.resume();
+      console.log('🎧 AudioContext resumed');
+    }
+
+    // Try playing all audio tracks
     audioElementsRef.current.forEach(audioElement => {
       audioElement.play().catch((error: any) => {
         console.error('Failed to enable audio:', error);
       });
     });
+
     setShowAutoplayPrompt(false);
-  };
+  } catch (error) {
+    console.error('Error in enableAudio:', error);
+  }
+};
+
 
   // Fallback Text-to-Speech function
   const speakTextFallback = (text: string) => {
@@ -494,6 +559,13 @@ export const VoiceInterviewScreen: React.FC<VoiceInterviewScreenProps> = ({
       setIsThinking(true);
       setConnectionStatus('connecting');
       setShowEndConfirmation(false);
+
+
+      // ✅ Resume AudioContext if needed
+      if (audioContextRef.current?.state === 'suspended') {
+      await audioContextRef.current.resume();
+      console.log('🎧 AudioContext resumed in startVoiceInterview');
+      }
       
       console.log('[VoiceInterview] ========== STARTING VOICE INTERVIEW ==========');
       console.log('[VoiceInterview] Selected provider:', selectedProvider);

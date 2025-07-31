@@ -14,7 +14,7 @@ import logging
 logger = logging.getLogger("livekit.agents").setLevel(logging.INFO)
 
 from livekit import agents
-from livekit.agents import Agent, AgentSession, WorkerOptions, AutoSubscribe,JobContext
+from livekit.agents import Agent, AgentSession, WorkerOptions, AutoSubscribe,JobContext,RoomInputOptions,RoomOutputOptions
 
 
 # Import plugins from their specific packages
@@ -27,11 +27,10 @@ except ImportError as e:
 
 # Import plugins from their specific packages
 try:
-    from livekit.plugins.turn_detector.multilingual import MultilingualModel
-    print("Multilingual Model imported successfully")
+    from livekit.plugins import noise_cancellation
+    print("BVC Noise Cancellation imported successfully")
 except ImportError as e:
-    print(f"livekit-plugins-turn-detector not installed or MultilingualModel not available: {e}")
-    print("Will fall back to VAD for turn detection. Install with: pip install livekit-plugins-turn-detector")
+    print(f"BVC Noise Cancellation not installed or not available: {e}")
 
 try:
     from livekit.plugins import google
@@ -106,7 +105,7 @@ class Assistant(Agent):
 
 #def prewarm_fnc(proc: agents.JobProcess):
     # load silero weights and store to process userdata
-    #proc.userdata["vad"] = silero.VAD.load()
+#    proc.userdata["vad"] = silero.VAD.load()
 
 async def entrypoint(ctx: agents.JobContext):
     user_context = {}
@@ -119,22 +118,34 @@ async def entrypoint(ctx: agents.JobContext):
     #vad: silero.VAD = ctx.proc.userdata["vad"]
 
     session = AgentSession(
+
+        #llm=google.beta.realtime.RealtimeModel(
+        #    model="gemini-2.0-flash-exp",
+        #    voice="Puck",
+        #    temperature=0.8,
+        #    instructions=user_context.get("interview_instructions", "You are an expert interviewer who simulates a real interview environment to help users prepare for job interviews."),
+        #),
+
         stt=GladiaSTT(),
-        #llm=openai.LLM(model="gpt-4o-mini"),
-        #tts=CartesiaTTS(model="sonic-2", voice="f786b574-daa5-4673-aa0c-cbe3e8534c02"),
         llm=google.LLM(model="gemini-2.0-flash-exp", temperature=0.8),
         tts=elevenlabs.TTS(voice_id="Xb7hH8MSUJpSbSDYk0k2", model="eleven_multilingual_v2"),
-        #turn_detection="stt",#EnglishModel(),
         vad=silero.VAD.load(),
-        #vad=vad, #silero.VAD.load(),
-        #turn_detection=EnglishModel()#"vad"    #MultilingualModel(),  #EnglishModel() Use VAD for turn detection
-        turn_detection=MultilingualModel(),
+        turn_detection=EnglishModel() 
     )
 
     await session.start(
         room=ctx.room,
         agent=Assistant(ctx=ctx, user_context=user_context),
+        room_input_options=RoomInputOptions(
+            # LiveKit Cloud enhanced noise cancellation
+            # - If self-hosting, omit this parameter
+            # - For telephony applications, use `BVCTelephony` for best results
+            noise_cancellation=noise_cancellation.BVC(),
+        ),
+        room_output_options=RoomOutputOptions(transcription_enabled=True),
+        
     )
+
     
     await ctx.connect(auto_subscribe=AutoSubscribe.SUBSCRIBE_ALL)
 
