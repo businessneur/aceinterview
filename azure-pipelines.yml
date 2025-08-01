@@ -1,0 +1,74 @@
+trigger:
+  - feature/docker-desktop-local-run
+
+pool:
+  name: Default  # Your self-hosted agent pool name
+
+resources:
+  - repo: self
+
+variables:
+  dockerRegistryServiceConnection: 'cd298216-a479-4ea3-95c5-c1bc37fcda8f'
+  imageRepository: 'ace_interview_img'
+  containerRegistry: 'aceinterviewreg.azurecr.io'
+  dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
+  tag: '$(Build.BuildId)'
+
+stages:
+- stage: BuildAndPush
+  displayName: Build and Push Stage
+  jobs:
+  - job: BuildPush
+    displayName: Build and Push Docker Image
+    pool:
+      name: Default  # Use self-hosted agent
+    steps:
+    - checkout: self
+
+    - task: Docker@2
+      displayName: Build and push an image to ACR
+      inputs:
+        command: buildAndPush
+        repository: $(imageRepository)
+        dockerfile: $(dockerfilePath)
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
+
+- stage: DockerComposeRun
+  displayName: Run Docker Compose
+  dependsOn: BuildAndPush
+  jobs:
+  - job: Compose
+    displayName: Docker Compose Up
+    pool:
+      name: Default  # Use same self-hosted agent
+    steps:
+    - task: DockerCompose@1
+      displayName: Run Docker Compose with build args
+      inputs:
+        containerregistrytype: 'Azure Container Registry'
+        azureSubscription: 'Azure subscription 1(39928731-bab9-431a-ae76-70de01ff76fd)'
+        azureContainerRegistry: 'aceinterview.azurecr.io'
+        dockerComposeFile: '**/docker-compose.yml'
+        dockerComposeFileArgs: |
+          VITE_USE_PYTHON_BACKEND=true
+          VITE_PYTHON_API_URL=http://localhost:3001/api
+          VITE_API_URL=http://localhost:3001/api
+          LLM_PROVIDER=gemini
+          OPENAI_API_KEY=$(OPENAI_API_KEY)
+          GEMINI_API_KEY=$(GEMINI_API_KEY)
+          GOOGLE_API_KEY=$(GOOGLE_API_KEY)
+          GOOGLE_APPLICATION_CREDENTIALS=voicevercify-e2f11885e2ff.json
+          GOOGLE_CLOUD_PROJECT_ID=VoiceVercify
+          VOICE_AGENT_PROVIDER=google
+          LIVEKIT_API_KEY=$(LIVEKIT_API_KEY)
+          LIVEKIT_API_SECRET=$(LIVEKIT_API_SECRET)
+          LIVEKIT_WS_URL=wss://interviewprep-wa8rbw8o.livekit.cloud
+          LIVEKIT_URL=wss://interviewprep-wa8rbw8o.livekit.cloud
+          PORT=3001
+          JWT_SECRET=$(JWT_SECRET)
+          ELEVEN_API_KEY=$(ELEVEN_API_KEY)
+          GLADIA_API_KEY=$(GLADIA_API_KEY)
+        action: 'Run a Docker Compose command'
+        dockerComposeCommand: 'up --build'
