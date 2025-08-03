@@ -52,6 +52,7 @@ stages:
         azureSubscription: 'Azure subscription 1(39928731-bab9-431a-ae76-70de01ff76fd)'
         azureContainerRegistry: 'aceinterview.azurecr.io'
         dockerComposeFile: '**/docker-compose.yml'
+        projectName: 'businessneur-aceinterview'   # <-- Add this line
         dockerComposeFileArgs: |
           VITE_USE_PYTHON_BACKEND=true
           VITE_PYTHON_API_URL=http://localhost:3001/api
