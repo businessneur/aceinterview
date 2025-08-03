@@ -19,6 +19,7 @@ variables:
   - name: tag
     value: '$(Build.BuildId)'
   - group: aceinterview-secrets
+  - group: aceinterview-secrets-non-key-vault
 
 stages:
 - stage: BuildAndPush
