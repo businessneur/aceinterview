@@ -8,12 +8,17 @@ resources:
   - repo: self
 
 variables:
-  dockerRegistryServiceConnection: 'cd298216-a479-4ea3-95c5-c1bc37fcda8f'
-  imageRepository: 'ace_interview_img'
-  containerRegistry: 'aceinterviewreg.azurecr.io'
-  dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
-  tag: '$(Build.BuildId)'
-- group: aceinterview-secrets
+  - name: dockerRegistryServiceConnection
+    value: 'cd298216-a479-4ea3-95c5-c1bc37fcda8f'
+  - name: imageRepository
+    value: 'ace_interview_img'
+  - name: containerRegistry
+    value: 'aceinterviewreg.azurecr.io'
+  - name: dockerfilePath
+    value: '$(Build.SourcesDirectory)/Dockerfile'
+  - name: tag
+    value: '$(Build.BuildId)'
+  - group: aceinterview-secrets
 
 stages:
 - stage: BuildAndPush
