@@ -158,6 +158,6 @@ if __name__ == "__main__":
             ws_url=os.environ["LIVEKIT_WS_URL"],
             api_key=os.environ["LIVEKIT_API_KEY"],
             api_secret=os.environ["LIVEKIT_API_SECRET"],
-        )
     )
+)
 

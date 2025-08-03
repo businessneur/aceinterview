@@ -13,6 +13,7 @@ variables:
   containerRegistry: 'aceinterviewreg.azurecr.io'
   dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
   tag: '$(Build.BuildId)'
+- group: aceinterview-secrets
 
 stages:
 - stage: BuildAndPush
