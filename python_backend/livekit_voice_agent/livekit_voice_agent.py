@@ -155,9 +155,9 @@ if __name__ == "__main__":
             entrypoint_fnc=entrypoint,
             #prewarm_fnc=prewarm_fnc,
             agent_name=os.environ.get("LIVEKIT_AGENT_ID", "voice-agent"),
-            ws_url=os.environ.get("LIVEKIT_WS_URL", "dummy"),
-            api_key=os.environ.get("LIVEKIT_API_KEY", "dummy"),
-            api_secret=os.environ.get("LIVEKIT_API_SECRET", "dummy"),
+            ws_url=os.environ.get("LIVEKIT_WS_URL", "wss://interviewprep-wa8rbw8o.livekit.cloud"),
+            api_key=os.environ.get("LIVEKIT_API_KEY", "APIJ7KGQpP94S7x"),
+            api_secret=os.environ.get("LIVEKIT_API_SECRET", "pfKFVEGwaoAvIcQVqq6jBOBgUFRTFeTy4fki4tZPbfXB"),
     )
 )
 
