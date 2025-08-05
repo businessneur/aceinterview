@@ -3,6 +3,14 @@ services:
     build: .
     ports:
       - "3000:3000"
+    environment:  
+      - PYTHONUNBUFFERED=1
+      - LIVEKIT_WS_URL=${LIVEKIT_WS_URL}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      - LIVEKIT_AGENT_ID="voice-agent"  # Use a fixed agent ID
+      - LIVEKIT_URL=${LIVEKIT_WS_URL}
+
     depends_on:
       - backend
     mem_limit: 512m
@@ -16,6 +24,16 @@ services:
       - "3001:3001"
     environment:  
       - PYTHONUNBUFFERED=1
+      - LIVEKIT_WS_URL=${LIVEKIT_WS_URL}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      - LIVEKIT_AGENT_ID="voice-agent"  # Use a fixed agent ID
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - LIVEKIT_URL=${LIVEKIT_WS_URL}
+      - ELEVEN_API_KEY=${ELEVEN_API_KEY}
+      - GLADIA_API_KEY=${GLADIA_API_KEY}
     volumes:
       - ./python_backend:/app  # <--- mount backend code
     command: ["python", "main.py"]  # optional override
@@ -25,6 +43,17 @@ services:
       context: ./python_backend/livekit_voice_agent
     environment:  
       - PYTHONUNBUFFERED=1
+      - LIVEKIT_WS_URL=${LIVEKIT_WS_URL}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      - LIVEKIT_AGENT_ID="voice-agent"  # Use a fixed agent ID
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - LIVEKIT_URL=${LIVEKIT_WS_URL}
+      - ELEVEN_API_KEY=${ELEVEN_API_KEY}
+      - GLADIA_API_KEY=${GLADIA_API_KEY}
+
     volumes:
       - ./python_backend/livekit_voice_agent:/app # <--- mount voice agent code
     command: ["python", "livekit_voice_agent.py", "start"]
