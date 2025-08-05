@@ -292,6 +292,8 @@ export const VoiceInterviewScreen: React.FC<VoiceInterviewScreenProps> = ({
             if (isListening) {
               stopListening();
             }
+            // Clear transcript when AI starts speaking
+            resetTranscript();
           };
           
           audioElement.onended = () => {
@@ -357,8 +359,8 @@ export const VoiceInterviewScreen: React.FC<VoiceInterviewScreenProps> = ({
       }
     });
 
-  }, [remoteAudioTracks, isListening, stopListening, startListening, isInterviewActive]);
-
+  }, [remoteAudioTracks, isListening, stopListening, startListening, isInterviewActive, resetTranscript]);
+  
   // Audio level monitoring
   useEffect(() => {
     if (localAudioTrack) {
@@ -534,6 +536,8 @@ const enableAudio = async () => {
     }
   };
 
+
+
   const formatTime = (ms: number): string => {
     const minutes = Math.floor(ms / 60000);
     const seconds = Math.floor((ms % 60000) / 1000);
@@ -613,40 +617,6 @@ const enableAudio = async () => {
     }
   };
 
-  const pauseInterview = async () => {
-    setIsInterviewActive(false);
-    stopListening();
-    if (livekitProps) {
-      stopAudio();
-    }
-    
-    if (voiceSession) {
-      try {
-        await VoiceInterviewService.pauseInterview(voiceSession.sessionId);
-      } catch (error) {
-        console.error('[VoiceInterview] Error pausing interview:', error);
-      }
-    }
-  };
-
-  const resumeInterview = async () => {
-    setIsInterviewActive(true);
-    
-    if (voiceSession) {
-      try {
-        await VoiceInterviewService.resumeInterview(voiceSession.sessionId);
-        if (livekitProps) {
-          await startAudio();
-        }
-        if (speechSupported && !isListening) {
-          startListening();
-        }
-      } catch (error) {
-        console.error('[VoiceInterview] Error resuming interview:', error);
-      }
-    }
-  };
-
   const endInterview = async () => {
     setIsInterviewActive(false);
     stopListening();
@@ -684,6 +654,24 @@ const enableAudio = async () => {
     
     onEndInterview(simulator);
   };
+
+// Handle browser/tab close during interview
+useEffect(() => {
+  const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+    if (isInterviewActive) {
+      // Optionally show a confirmation dialog (not always supported)
+      e.preventDefault();
+      e.returnValue = '';
+      // End interview cleanly
+      endInterview();
+    }
+  };
+  window.addEventListener('beforeunload', handleBeforeUnload);
+  return () => {
+    window.removeEventListener('beforeunload', handleBeforeUnload);
+  };
+}, [isInterviewActive, endInterview]);
+
 
   const handleEndInterviewClick = () => {
     setShowEndConfirmation(true);
@@ -931,13 +919,8 @@ const enableAudio = async () => {
                     </button>
                   </>
                 ) : (
-                  <button
-                    onClick={pauseInterview}
-                    className="inline-flex items-center px-6 py-3 bg-yellow-600 text-white font-semibold rounded-xl hover:bg-yellow-700 focus:outline-none focus:ring-4 focus:ring-yellow-300 transition-all"
-                  >
-                    <Pause className="w-4 h-4 mr-2" />
-                    Pause Interview
-                  </button>
+                  // Pause Interview button removed
+                  null
                 )}
                 
                 <button
@@ -959,7 +942,7 @@ const enableAudio = async () => {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Live Conversation */}
+            {/* Interviewer Question */}
             <div className="lg:col-span-2">
               <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
                 <div className="flex items-center mb-4">
@@ -967,7 +950,7 @@ const enableAudio = async () => {
                     <MessageCircle className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Live {aiAgentStatus?.provider?.toUpperCase() || 'AI'} Conversation</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">Interviewer Question</h3>
                     <p className="text-sm text-gray-600 flex items-center">
                       <span className="mr-2">(Real-time)</span>
                       {isAISpeaking && (
@@ -992,75 +975,89 @@ const enableAudio = async () => {
                   </div>
                 </div>
 
-                <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 min-h-[300px] max-h-[400px] overflow-y-auto">
-                  {currentQuestion && (
-                    <div className="mb-6 p-4 bg-white rounded-lg border border-purple-200">
-                      <div className="flex items-center mb-2">
-                        <Brain className="w-5 h-5 text-purple-600 mr-2" />
-                        <span className="font-semibold text-purple-900">Current Question</span>
-                      </div>
-                      <p className="text-gray-800">{currentQuestion}</p>
-                    </div>
-                  )}
-
-                  {conversationHistory.length > 0 ? (
-                    <div className="space-y-4">
-                      {conversationHistory.map((entry, index) => (
-                        <div key={index} className={`flex ${entry.speaker === 'user' ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[80%] p-3 rounded-lg ${
-                            entry.speaker === 'user' 
-                              ? 'bg-blue-500 text-white' 
-                              : 'bg-white text-gray-800 border border-purple-200'
-                          }`}>
-                            <div className="flex items-center mb-1">
-                              {entry.speaker === 'user' ? (
-                                <Mic className="w-4 h-4 mr-2" />
-                              ) : (
-                                <Brain className="w-4 h-4 mr-2 text-purple-600" />
-                              )}
-                              <span className="text-xs font-medium">
-                                {entry.speaker === 'user' ? 'You' : `${aiAgentStatus?.provider?.toUpperCase() || 'AI'} Interviewer`}
-                              </span>
-                              <span className="text-xs opacity-70 ml-2">
-                                {new Date(entry.timestamp).toLocaleTimeString()}
-                              </span>
-                            </div>
-                            <p className="text-sm">{entry.message}</p>
-                            {entry.type && (
-                              <span className={`text-xs px-2 py-1 rounded-full mt-2 inline-block ${
-                                entry.type === 'greeting' ? 'bg-green-100 text-green-700' :
-                                entry.type === 'question' ? 'bg-blue-100 text-blue-700' :
-                                entry.type === 'speaking' ? 'bg-yellow-100 text-yellow-700' :
-                                'bg-gray-100 text-gray-700'
-                              }`}>
-                                {entry.type}
+                {/* Show only the latest AI question/message, or fallback to currentQuestion */}
+                <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 min-h-[120px] max-h-[200px] overflow-y-auto flex items-center">
+                  {(() => {
+                    // Find the last AI message (question/greeting/feedback)
+                    const lastAI = [...conversationHistory].reverse().find(
+                      entry => entry.speaker === 'ai'
+                    );
+                    // Show last AI message if available
+                    if (lastAI) {
+                      return (
+                        <div className="w-full">
+                          <div className="flex items-center mb-2">
+                            <Brain className="w-5 h-5 text-purple-600 mr-2" />
+                            <span className="font-semibold text-purple-900">AI Interviewer</span>
+                            <span className="text-xs opacity-70 ml-2">
+                              {new Date(lastAI.timestamp).toLocaleTimeString()}
+                            </span>
+                          </div>
+                          <p className="text-gray-800">{lastAI.message}</p>
+                          {lastAI.type && (
+                            <span className={`text-xs px-2 py-1 rounded-full mt-2 inline-block ${
+                              lastAI.type === 'greeting' ? 'bg-green-100 text-green-700' :
+                              lastAI.type === 'question' ? 'bg-blue-100 text-blue-700' :
+                              lastAI.type === 'feedback' ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {lastAI.type}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    }
+                    // Fallback: show currentQuestion if no AI message in conversationHistory
+                    if (currentQuestion && currentQuestion.trim().length > 0) {
+                      return (
+                        <div className="w-full">
+                          <div className="flex items-center mb-2">
+                            <Brain className="w-5 h-5 text-purple-600 mr-2" />
+                            <span className="font-semibold text-purple-900">AI Interviewer</span>
+                          </div>
+                          {/* Show currentQuestion and also the latest AI transcript if available */}
+                          <p className="text-gray-800">
+                            {currentQuestion}
+                            {/* Show the latest AI transcript if available */}
+                            {isAISpeaking && transcript && (
+                              <span className="block mt-2 text-purple-700 font-mono">
+                                {transcript}
                               </span>
                             )}
-                          </div>
+                          </p>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-gray-500">
-                      <Phone className="w-8 h-8 mr-3" />
-                      <span>Click "Start Voice Interview" to begin the conversation</span>
-                    </div>
-                  )}
+                      );
+                    }
+                    // Only show the static message if interview is NOT active
+                    if (!isInterviewActive) {
+                      return (
+                        <div className="flex items-center justify-center w-full text-gray-500">
+                          <Phone className="w-8 h-8 mr-3" />
+                          <span>Click "Start Voice Interview" to begin the conversation</span>
+                        </div>
+                      );
+                    }
+                    // If interview is active but no AI message, show "Waiting for interviewer..."
+                    return (
+                      <div className="flex items-center justify-center w-full text-gray-400">
+                        <Loader className="w-5 h-5 mr-2 animate-spin" />
+                        <span>Waiting for interviewer...</span>
+                      </div>
+                    );
+                  })()}
                 </div>
-              </div>
-
-              {/* Voice Response Interface */}
+              
+              {/* User Response */}
               <div className="bg-white rounded-2xl shadow-lg p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                   <Mic className="w-5 h-5 mr-2 text-blue-600" />
-                  Voice Response ({aiAgentStatus?.provider?.toUpperCase() || 'AI'} Managed)
+                  User Response
                 </h3>
-                
                 <div className="space-y-4">
                   {/* Live Transcript */}
-                  <div className="bg-gray-50 rounded-xl p-4 min-h-[120px]">
+                  <div className="bg-gray-50 rounded-xl p-4 min-h-[80px]">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-gray-700">Live Transcript ({aiAgentStatus?.provider?.toUpperCase() || 'Browser'} Speech-to-Text)</span>
+                      <span className="text-sm font-medium text-gray-700">Live Transcript</span>
                       {isListening && (
                         <div className="flex items-center text-sm text-green-600">
                           <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse mr-2"></div>
@@ -1069,7 +1066,10 @@ const enableAudio = async () => {
                       )}
                     </div>
                     <p className="text-gray-800">
-                      {transcript || 'Your speech will appear here in real-time...'}
+                      {/* Only show transcript if user is speaking */}
+                      {userSpeaking && transcript
+                        ? transcript
+                        : 'Your speech will appear here in real-time...'}
                     </p>
                   </div>
 
@@ -1103,23 +1103,16 @@ const enableAudio = async () => {
                           {isListening ? <Mic className="w-6 h-6" /> : <MicOff className="w-6 h-6" />}
                         </button>
                       )}
-                      
                       <div className="text-sm text-gray-600">
-                        {aiAgentStatus?.conversational 
-                          ? `${aiAgentStatus.provider?.toUpperCase() || 'AI'} is managing the conversation flow automatically`
-                          : isListening ? 'Click to stop recording' : 'Click to start recording'
-                        }
+                        {/* Show "Unmuted" if listening, otherwise prompt to unmute */}
+                        {isListening ? "Unmuted, you may speak" : "Please unmute to answer"}
                       </div>
                     </div>
-
-                    <div className="text-sm text-purple-600">
-                      Powered by {aiAgentStatus?.provider?.toUpperCase() || 'AI'} Agent
-                    </div>
+                    {/* Remove the "Powered by GOOGLE Agent" message */}
                   </div>
                 </div>
               </div>
             </div>
-
             {/* Notes Section */}
             <div className="bg-white rounded-2xl shadow-lg p-6">
               <div className="flex items-center mb-4">
@@ -1194,35 +1187,8 @@ const enableAudio = async () => {
           </div>
         </div>
       </div>
-      {/* Bolt Badge */}
-      <a
-        href="https://bolt.new/"
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{
-          position: 'fixed',
-          right: '2vw',
-          bottom: '2vw',
-          zIndex: 1000,
-          display: 'block',
-        }}
-        aria-label="Powered by Bolt"
-      >
-        <img
-          src="/black_circle_360x360.png"
-          alt="Powered by Bolt"
-          style={{
-            width: 'clamp(60px, 8vw, 100px)',
-            height: 'auto',
-            maxWidth: '100%',
-            borderRadius: '50%',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.10)',
-            background: 'white'
-          }}
-        />
-      </a>
     </div>
+  </div>
   );
 };
-
-
+    
