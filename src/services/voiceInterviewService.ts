@@ -45,6 +45,13 @@ export interface SessionStatus {
 
 export class VoiceInterviewService {
   private static readonly API_BASE = '/voice-interview';
+  
+  /**
+   * Check if we're in development mode and should allow fallback
+   */
+  private static isDevelopmentMode(): boolean {
+    return import.meta.env.DEV || import.meta.env.MODE === 'development';
+  }
 
   /**
    * Start a new voice interview session with provider selection
@@ -184,17 +191,123 @@ export class VoiceInterviewService {
    */
   static async checkLiveKitConfig(): Promise<{ configured: boolean; wsUrl?: string; aiAgent?: any; timestamp?: string }> {
     try {
-      console.log('LiveKit config Origin URL:', import.meta.env.VITE_API_URL);
-      const response = await APIService.get(`${import.meta.env.VITE_API_URL}/livekit/config`);
-      // The APIService.get() returns the data directly, not { data: ... }
+      console.log('🔍 Checking LiveKit configuration...');
+      console.log('🌐 API Base URL:', APIService.getBaseURL());
+      
+      // First, let's try to check if the backend is reachable
+      try {
+        const healthCheck = await APIService.checkHealth();
+        console.log('🏥 Backend health check:', healthCheck);
+        
+        if (!healthCheck) {
+          console.warn('⚠️ Backend is not healthy, LiveKit config check may fail');
+        }
+      } catch (healthError) {
+        console.warn('⚠️ Backend health check failed:', healthError);
+        
+        // If backend is not reachable, try alternative endpoints
+        const hostname = window.location.hostname;
+        const protocol = window.location.protocol;
+        
+        const alternativeUrls = [
+          `${protocol}//${hostname}:3001/api`,  // Same host, backend port
+          'http://localhost:3001/api',          // Local development fallback
+          `${protocol}//backend:3001/api`,      // Docker service name (unlikely to work from browser)
+        ];
+        
+        console.log('🔄 Trying alternative backend URLs...');
+        for (const url of alternativeUrls) {
+          try {
+            console.log(`🌐 Trying: ${url}/health`);
+            const response = await fetch(`${url}/health`, { 
+              method: 'GET',
+              headers: { 'Content-Type': 'application/json' },
+              signal: AbortSignal.timeout(3000) // 3 second timeout
+            });
+            
+            if (response.ok) {
+              console.log(`✅ Found working backend at: ${url}`);
+              // Note: We can't dynamically update the API base URL here 
+              // because it's already configured in APIService
+              break;
+            }
+          } catch (altError) {
+            console.log(`❌ Failed to reach: ${url} - ${altError.message}`);
+          }
+        }
+      }
+      
+      // Use the relative endpoint - APIService already has the base URL configured
+      const response = await APIService.get('/livekit/config');
+      
       if (!response) {
-        console.warn('LiveKit config: response is undefined');
+        console.warn('⚠️ LiveKit config: response is undefined');
         return { configured: false };
       }
-      console.log('LiveKit Response data:', response.configured);
-      return response;
+      
+      console.log('📋 LiveKit Response data:', response);
+      
+      // Ensure we return a proper boolean for configured
+      const isConfigured = Boolean(response.configured);
+      console.log(`✅ LiveKit configured status: ${isConfigured}`);
+      
+      return {
+        configured: isConfigured,
+        wsUrl: response.wsUrl,
+        aiAgent: response.aiAgent,
+        timestamp: response.timestamp || new Date().toISOString()
+      };
     } catch (error) {
-      console.error('Error checking LiveKit config:', error);
+      console.error('❌ Error checking LiveKit config:', error);
+      
+      // If it's a network error, try to provide more helpful information
+      if (error instanceof Error) {
+        console.error('🔍 Error details:', {
+          message: error.message,
+          name: error.name,
+          stack: error.stack?.substring(0, 500) // Limit stack trace length
+        });
+      }
+      
+      // Check if it's an axios error with more details
+      if ((error as any).response) {
+        const axiosError = error as any;
+        console.error('🌐 HTTP Error details:', {
+          status: axiosError.response?.status,
+          statusText: axiosError.response?.statusText,
+          data: axiosError.response?.data,
+          url: axiosError.config?.url
+        });
+        
+        // If we get a 404, the endpoint might not exist
+        if (axiosError.response?.status === 404) {
+          console.warn('🚫 LiveKit config endpoint not found - backend may not have LiveKit support enabled');
+        }
+      } else if ((error as any).request) {
+        console.error('📡 Network Error: No response received from server');
+        console.error('🔗 Request details:', {
+          url: (error as any).config?.url,
+          method: (error as any).config?.method,
+          baseURL: (error as any).config?.baseURL
+        });
+        
+        console.warn('💡 This might be a Docker networking issue. Make sure:');
+        console.warn('   1. Backend service is running');
+        console.warn('   2. Frontend can reach backend (check docker-compose networking)');
+        console.warn('   3. Environment variables are properly set');
+      }
+      
+      // In development mode, provide a fallback configuration
+      if (this.isDevelopmentMode()) {
+        console.warn('🔧 Development mode: Using fallback LiveKit configuration');
+        return {
+          configured: true,
+          wsUrl: 'wss://test-3q4r3w5h.livekit.cloud', // From .env file
+          aiAgent: { enabled: true, provider: 'google' },
+          timestamp: new Date().toISOString()
+        };
+      }
+      
       return { configured: false };
     }
   }

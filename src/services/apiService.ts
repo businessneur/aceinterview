@@ -3,9 +3,38 @@ import { InterviewConfig, AnalyticsData, InterviewResponse } from '../types/inde
 import { convertKeysToSnake, convertKeysToCamel } from '../utils/caseConversion';
 
 // Check if we should use Python backend
-const PYTHON_API_BASE = import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:3001/api';
+// For Docker deployment, we need to use the host's IP or a proxy
+const getApiBaseUrl = () => {
+  // If VITE_PYTHON_API_URL is explicitly set, use it
+  if (import.meta.env.VITE_PYTHON_API_URL) {
+    return import.meta.env.VITE_PYTHON_API_URL;
+  }
+  
+  // Check if we're running in a containerized environment
+  const hostname = window.location.hostname;
+  const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+  
+  if (isLocalhost) {
+    // Local development - backend is on localhost:3001
+    return 'http://localhost:3001/api';
+  } else {
+    // Production/Docker - backend should be accessible via the same host but different port
+    // or use relative path if there's a proxy
+    const protocol = window.location.protocol;
+    const port = '3001'; // Backend port
+    return `${protocol}//${hostname}:${port}/api`;
+  }
+};
 
-const API_BASE_URL = PYTHON_API_BASE 
+const API_BASE_URL = getApiBaseUrl();
+
+console.log('🌐 API Configuration:', {
+  hostname: window.location.hostname,
+  protocol: window.location.protocol,
+  VITE_PYTHON_API_URL: import.meta.env.VITE_PYTHON_API_URL,
+  API_BASE_URL: API_BASE_URL,
+  isLocalhost: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+});
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -67,6 +96,11 @@ export function toPythonInterviewConfig(config: InterviewConfig) {
 }
 
 export class APIService {
+  // Get the current API base URL for debugging
+  static getBaseURL(): string {
+    return API_BASE_URL;
+  }
+
   static async generateQuestion(request: QuestionGenerationRequest): Promise<string> {
     try {
       const pythonRequest = convertKeysToSnake({

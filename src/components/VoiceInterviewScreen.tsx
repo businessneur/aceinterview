@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Mic, 
   MicOff, 
@@ -27,15 +27,24 @@ import {
   XCircle
 } from 'lucide-react';
 import { InterviewConfig } from '../types/index';
-import { AIInterviewSimulator } from '../utils/aiSimulator';
 import { useLiveKit } from '../hooks/useLiveKit';
 import { VoiceInterviewService } from '../services/voiceInterviewService';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
-import { toPythonInterviewConfig } from '../services/apiService';
+
+// Import new hooks and utilities
+import { useVoiceInterviewState } from './VoiceInterview/hooks/useVoiceInterviewState';
+import { useAudioManager } from './VoiceInterview/hooks/useAudioManager';
+import { formatTime, getConnectionStatusColor, getConnectionStatusText } from './VoiceInterview/utils';
+import { CONNECTION_STATUS, TIMING, CONVERSATION_TYPES } from './VoiceInterview/constants';
+import { 
+  InterviewStartingModal, 
+  AutoplayPromptModal, 
+  EndInterviewModal 
+} from './VoiceInterview/components/InterviewModals';
 
 interface VoiceInterviewScreenProps {
   config: InterviewConfig;
-  onEndInterview: (simulator: AIInterviewSimulator) => void;
+  onEndInterview: (simulator: any) => void;
   onBackToConfig: () => void;
 }
 
@@ -44,33 +53,48 @@ export const VoiceInterviewScreen: React.FC<VoiceInterviewScreenProps> = ({
   onEndInterview,
   onBackToConfig
 }) => {
-  const [simulator] = useState(() => new AIInterviewSimulator(config));
-  const [isInterviewActive, setIsInterviewActive] = useState(false);
-  const [notes, setNotes] = useState('');
-  const [startTime, setStartTime] = useState<number | null>(null);
-  const [elapsedTime, setElapsedTime] = useState(0);
-  const [isThinking, setIsThinking] = useState(false);
-  const [voiceSession, setVoiceSession] = useState<any>(null);
-  const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
-  const [audioLevel, setAudioLevel] = useState(0);
-  const [participantName] = useState(`participant-${Date.now()}`);
-  const [livekitReady, setLivekitReady] = useState(false);
-  const [showEndConfirmation, setShowEndConfirmation] = useState(false);
-  const [conversationHistory, setConversationHistory] = useState<any[]>([]);
-  const [currentQuestion, setCurrentQuestion] = useState<string>('');
-  const [isAISpeaking, setIsAISpeaking] = useState(false);
-  const [userSpeaking, setUserSpeaking] = useState(false);
-  const [aiAgentStatus, setAiAgentStatus] = useState<any>(null);
-  const [selectedProvider, setSelectedProvider] = useState<'openai' | 'google'>('google');
-  const [showProviderSelection, setShowProviderSelection] = useState(false);
-  const [showAutoplayPrompt, setShowAutoplayPrompt] = useState(false);
-  const [audioTestResult, setAudioTestResult] = useState<'none' | 'success' | 'failed'>('none');
-  
-  // Audio management refs
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
-  const speechSynthesisRef = useRef<SpeechSynthesis | null>(null);
-  
+  // Use custom hooks for state management
+  const {
+    simulator,
+    isInterviewActive,
+    notes,
+    startTime,
+    elapsedTime,
+    isThinking,
+    voiceSession,
+    connectionStatus,
+    audioLevel,
+    participantName,
+    livekitReady,
+    showEndConfirmation,
+    conversationHistory,
+    currentQuestion,
+    isAISpeaking,
+    userSpeaking,
+    aiAgentStatus,
+    selectedProvider,
+    showAutoplayPrompt,
+    audioTestResult,
+    setIsInterviewActive,
+    setNotes,
+    setStartTime,
+    setElapsedTime,
+    setIsThinking,
+    setVoiceSession,
+    setConnectionStatus,
+    setAudioLevel,
+    setLivekitReady,
+    setShowEndConfirmation,
+    setConversationHistory,
+    setCurrentQuestion,
+    setIsAISpeaking,
+    setUserSpeaking,
+    setAiAgentStatus,
+    setShowAutoplayPrompt,
+    setAudioTestResult,
+    notesRef
+  } = useVoiceInterviewState(config);
+
   const {
     isListening,
     transcript,
@@ -84,46 +108,54 @@ export const VoiceInterviewScreen: React.FC<VoiceInterviewScreenProps> = ({
   const handleDataMessage = useCallback((data: any) => {
     console.log('[VoiceInterview] 📨 Received data message:', data);
     
-    if (data.type === 'question' && data.text) {
-      setCurrentQuestion(data.text);
-      setConversationHistory(prev => [...prev, {
-        speaker: 'ai',
-        message: data.text,
-        timestamp: Date.now(),
-        type: 'question'
-      }]);
-    } else if (data.type === 'greeting' && data.text) {
-      setCurrentQuestion(data.text);
-      setConversationHistory(prev => [...prev, {
-        speaker: 'ai',
-        message: data.text,
-        timestamp: Date.now(),
-        type: 'greeting'
-      }]);
-    } else if (data.type === 'feedback' && data.text) {
-      setConversationHistory(prev => [...prev, {
-        speaker: 'ai',
-        message: data.text,
-        timestamp: Date.now(),
-        type: 'feedback'
-      }]);
+    const messageTypes = {
+      [CONVERSATION_TYPES.QUESTION]: () => {
+        setCurrentQuestion(data.text);
+        setConversationHistory(prev => [...prev, {
+          speaker: 'ai',
+          message: data.text,
+          timestamp: Date.now(),
+          type: CONVERSATION_TYPES.QUESTION
+        }]);
+      },
+      [CONVERSATION_TYPES.GREETING]: () => {
+        setCurrentQuestion(data.text);
+        setConversationHistory(prev => [...prev, {
+          speaker: 'ai',
+          message: data.text,
+          timestamp: Date.now(),
+          type: CONVERSATION_TYPES.GREETING
+        }]);
+      },
+      [CONVERSATION_TYPES.FEEDBACK]: () => {
+        setConversationHistory(prev => [...prev, {
+          speaker: 'ai',
+          message: data.text,
+          timestamp: Date.now(),
+          type: CONVERSATION_TYPES.FEEDBACK
+        }]);
+      }
+    };
+
+    if (data.type && data.text && messageTypes[data.type]) {
+      messageTypes[data.type]();
     }
-  }, []);
+  }, [setCurrentQuestion, setConversationHistory]);
 
   // Create LiveKit props using the backend-provided URL when we have a session
   const livekitProps = voiceSession && voiceSession.participantToken ? {
     wsUrl: voiceSession.wsUrl,
     token: voiceSession.participantToken,
     onConnected: () => {
-      setConnectionStatus('connected');
+      setConnectionStatus(CONNECTION_STATUS.CONNECTED);
       console.log('[VoiceInterview] ✅ Connected to LiveKit room');
     },
     onDisconnected: () => {
-      setConnectionStatus('disconnected');
+      setConnectionStatus(CONNECTION_STATUS.DISCONNECTED);
       console.log('[VoiceInterview] ❌ Disconnected from LiveKit room');
     },
     onError: (error: Error) => {
-      setConnectionStatus('error');
+      setConnectionStatus(CONNECTION_STATUS.ERROR);
       console.error('[VoiceInterview] ❌ LiveKit error:', error);
     },
     onDataMessageReceived: handleDataMessage
@@ -151,89 +183,19 @@ export const VoiceInterviewScreen: React.FC<VoiceInterviewScreenProps> = ({
     onDataMessageReceived: () => {}
   });
 
-  const notesRef = useRef<HTMLTextAreaElement>(null);
-
-  // Initialize audio context and speech synthesis
-  useEffect(() => {
-    const initializeAudio = async () => {
-      try {
-        // 🔁 Close any existing context (important for repeated tests)
-        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-          await audioContextRef.current.close();
-          console.log('🎧 Closed previous AudioContext');
-        }
-        // ✅ Create a new AudioContext
-        audioContextRef.current = new ((window as any).AudioContext || (window as any).webkitAudioContext)();
-        console.log('🎧 New AudioContext initialized');
-
-        // Initialize Speech Synthesis for fallback TTS
-        if ('speechSynthesis' in window) {
-          speechSynthesisRef.current = window.speechSynthesis;
-          console.log('🗣️ Speech Synthesis initialized');
-        }
-
-      } catch (error) {
-        console.error('❌ Error initializing audio:', error);
-      }
-    };
-    
-    // Call the initialize function
-    void initializeAudio();
-
-    return () => {
-      console.log('🧹 Running cleanup on unmount or interview end');
-
-      // Stop and remove all audio elements
-      audioElementsRef.current.forEach(audio => {
-        try {
-          audio.pause();
-          audio.srcObject = null;
-          audio.remove();
-        } catch (e) {
-          console.warn('Error cleaning up audio element:', e);
-        }
-      });
-      audioElementsRef.current.clear();
-
-        // Stop local audio track
-      if (localAudioTrack) {
-        try {
-          localAudioTrack.stop();
-          console.log('🎤 Local audio track stopped');
-        } catch (e) {
-          console.warn('Error stopping local audio track:', e);
-        }
-      }
-
-      // Cancel speech synthesis if active
-      if (speechSynthesisRef.current) {
-        speechSynthesisRef.current.cancel();
-      }
-
-        // Close and reset audio context
-      if (audioContextRef.current) {
-        try {
-          if (audioContextRef.current.state !== 'closed') {
-            audioContextRef.current.close();
-            console.log('🎧 AudioContext closed');
-          }
-        } catch (e) {
-          console.warn('Error closing AudioContext:', e);
-        } finally {
-          audioContextRef.current = null;
-        }
-      }
-        // Disconnect from LiveKit room
-      if (disconnectLiveKit) {
-        try {
-          disconnectLiveKit();
-          console.log('📡 LiveKit room disconnected');
-        } catch (e) {
-          console.warn('Error disconnecting LiveKit room:', e);
-        }
-      }
-    };
-  }, []);
+  // Use audio manager hook
+  const { audioContextRef, enableAudio, speakTextFallback } = useAudioManager({
+    remoteAudioTracks,
+    isListening,
+    stopListening,
+    startListening,
+    isInterviewActive,
+    resetTranscript,
+    setIsAISpeaking,
+    setUserSpeaking,
+    setShowAutoplayPrompt,
+    setAudioTestResult
+  });
 
   // Timer effect
   useEffect(() => {
@@ -244,123 +206,8 @@ export const VoiceInterviewScreen: React.FC<VoiceInterviewScreenProps> = ({
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [isInterviewActive, startTime]);
+  }, [isInterviewActive, startTime, setElapsedTime]);
 
-
-  const playWithRetry = async (audioElement: HTMLAudioElement, retries = 3) => {
-    try {
-      await audioElement.play();
-      console.log('✅ Audio played successfully');
-    } catch (error: any) {
-      console.warn(`⚠️ play() failed (${4 - retries}/3):`, error);
-      if (retries > 0) {
-        setTimeout(() => {
-            void playWithRetry(audioElement, retries - 1);
-            }, 600);
-      } else {
-        setShowAutoplayPrompt(true);
-      }
-    }
-  };
-
-
-  // Enhanced remote audio track handling with proper audio playback and autoplay detection
-  useEffect(() => {
-    if (remoteAudioTracks.length > 0) {
-      console.log(`🎵 Processing ${remoteAudioTracks.length} remote audio tracks`);
-      
-      remoteAudioTracks.forEach((track, index) => {
-        const trackId = track.sid || `track-${index}`;
-        
-        // Check if we already have an audio element for this track
-        if (!audioElementsRef.current.has(trackId)) {
-          console.log(`🎵 Creating new audio element for track: ${trackId}`);
-          
-          // Create audio element
-          const audioElement = document.createElement('audio') as any;
-          audioElement.autoplay = true;
-          audioElement.playsInline = true;
-          audioElement.volume = 1.0;
-          
-          // Set up event listeners
-          audioElement.onplay = () => {
-            console.log(`🎵 Audio started playing for track: ${trackId}`);
-            setIsAISpeaking(true);
-            setUserSpeaking(false);
-            setShowAutoplayPrompt(false);
-            // Stop user listening when AI starts speaking
-            if (isListening) {
-              stopListening();
-            }
-            // Clear transcript when AI starts speaking
-            resetTranscript();
-          };
-          
-          audioElement.onended = () => {
-            console.log(`🎵 Audio ended for track: ${trackId}`);
-            setIsAISpeaking(false);
-            // Resume listening after AI finishes speaking
-            setTimeout(() => {
-              if (isInterviewActive && !isListening) {
-                startListening();
-                setUserSpeaking(false);
-              }
-            }, 500);
-          };
-          
-          audioElement.onpause = () => {
-            console.log(`🎵 Audio paused for track: ${trackId}`);
-            setIsAISpeaking(false);
-          };
-          
-          audioElement.onerror = (error: any) => {
-            console.error(`❌ Audio error for track ${trackId}:`, error);
-            setIsAISpeaking(false);
-          };
-          
-          audioElement.onloadstart = () => {
-            console.log(`🎵 Audio loading started for track: ${trackId}`);
-          };
-          
-          audioElement.oncanplay = () => {
-            console.log(`🎵 Audio can play for track: ${trackId}`);
-          };
-          
-          // Attach the track to the audio element
-          try {
-            track.attach(audioElement);
-            console.log(`🎵 Track attached to audio element: ${trackId}`);
-            
-            // Add to DOM (hidden)
-            audioElement.style.display = 'none';
-            document.body.appendChild(audioElement);
-            
-            // Store reference
-            audioElementsRef.current.set(trackId, audioElement);
-            
-            // Force play if needed (handle autoplay restrictions)
-            playWithRetry(audioElement);
-            
-          } catch (attachError) {
-            console.error(`❌ Error attaching track ${trackId}:`, attachError);
-          }
-        }
-      });
-    }
-
-    // Cleanup removed tracks
-    const currentTrackIds = new Set(remoteAudioTracks.map((track, index) => track.sid || `track-${index}`));
-    audioElementsRef.current.forEach((audioElement, trackId) => {
-      if (!currentTrackIds.has(trackId)) {
-        console.log(`🗑️ Cleaning up audio element for removed track: ${trackId}`);
-        audioElement.pause();
-        audioElement.remove();
-        audioElementsRef.current.delete(trackId);
-      }
-    });
-
-  }, [remoteAudioTracks, isListening, stopListening, startListening, isInterviewActive, resetTranscript]);
-  
   // Audio level monitoring
   useEffect(() => {
     if (localAudioTrack) {
@@ -371,7 +218,7 @@ export const VoiceInterviewScreen: React.FC<VoiceInterviewScreenProps> = ({
       const interval = setInterval(analyzeAudio, 100);
       return () => clearInterval(interval);
     }
-  }, [localAudioTrack]);
+  }, [localAudioTrack, setAudioLevel]);
 
   // Update connection status based on LiveKit state
   useEffect(() => {
@@ -380,15 +227,15 @@ export const VoiceInterviewScreen: React.FC<VoiceInterviewScreenProps> = ({
     }
     
     if (livekitConnecting) {
-      setConnectionStatus('connecting');
+      setConnectionStatus(CONNECTION_STATUS.CONNECTING);
     } else if (livekitConnected) {
-      setConnectionStatus('connected');
+      setConnectionStatus(CONNECTION_STATUS.CONNECTED);
     } else if (livekitError) {
-      setConnectionStatus('error');
+      setConnectionStatus(CONNECTION_STATUS.ERROR);
     } else if (voiceSession) {
-      setConnectionStatus('disconnected');
+      setConnectionStatus(CONNECTION_STATUS.DISCONNECTED);
     }
-  }, [livekitConnecting, livekitConnected, livekitError, voiceSession, livekitProps]);
+  }, [livekitConnecting, livekitConnected, livekitError, voiceSession, livekitProps, setConnectionStatus]);
 
   // Effect to handle LiveKit connection after session is set
   useEffect(() => {
@@ -402,8 +249,8 @@ export const VoiceInterviewScreen: React.FC<VoiceInterviewScreenProps> = ({
           
           await connectLiveKit();
           if (audioContextRef.current?.state === 'suspended') {
-          await audioContextRef.current.resume();
-          console.log('🎧 AudioContext resumed after connect');
+            await audioContextRef.current.resume();
+            console.log('🎧 AudioContext resumed after connect');
           }
           setIsInterviewActive(true);
           setStartTime(Date.now());
@@ -415,20 +262,18 @@ export const VoiceInterviewScreen: React.FC<VoiceInterviewScreenProps> = ({
               startListening();
               setUserSpeaking(true);
             }
-          }, 1000);
+          }, TIMING.LISTENING_START_DELAY);
           
           console.log('[VoiceInterview] ✅ Voice interview started successfully');
         } catch (connectError) {
           console.error('[VoiceInterview] ❌ Failed to connect to LiveKit:', connectError);
-          setConnectionStatus('error');
+          setConnectionStatus(CONNECTION_STATUS.ERROR);
           setIsThinking(false);
           alert(`Failed to connect to voice interview: ${connectError instanceof Error ? connectError.message : 'Unknown error'}`);
         }
-      }, 200);
+      }, TIMING.LIVEKIT_CONNECTION_DELAY);
     }
-    // Only run once when voiceSession and livekitReady change from false to true
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [voiceSession, livekitReady]);
+  }, [voiceSession, livekitReady, connectLiveKit, audioContextRef, setIsInterviewActive, setStartTime, setIsThinking, speechSupported, isListening, startListening, setUserSpeaking, setConnectionStatus, setLivekitReady]);
 
   // Handle transcript changes
   useEffect(() => {
@@ -437,12 +282,12 @@ export const VoiceInterviewScreen: React.FC<VoiceInterviewScreenProps> = ({
       
       // Add user speech to conversation history
       const lastEntry = conversationHistory[conversationHistory.length - 1];
-      if (!lastEntry || lastEntry.speaker !== 'user' || lastEntry.type !== 'speaking') {
+      if (!lastEntry || lastEntry.speaker !== 'user' || lastEntry.type !== CONVERSATION_TYPES.SPEAKING) {
         setConversationHistory(prev => [...prev, {
           speaker: 'user',
           message: transcript,
           timestamp: Date.now(),
-          type: 'speaking'
+          type: CONVERSATION_TYPES.SPEAKING
         }]);
       } else {
         // Update the last user entry
@@ -457,125 +302,39 @@ export const VoiceInterviewScreen: React.FC<VoiceInterviewScreenProps> = ({
         });
       }
     }
-  }, [transcript, conversationHistory]);
+  }, [transcript, conversationHistory, setUserSpeaking, setConversationHistory]);
 
-  // Enable audio function for autoplay prompt
-const enableAudio = async () => {
-  try {
-    // Resume AudioContext if it's suspended
-    if (audioContextRef.current?.state === 'suspended') {
-      await audioContextRef.current.resume();
-      console.log('🎧 AudioContext resumed');
-    }
-
-    // Try playing all audio tracks
-    audioElementsRef.current.forEach(audioElement => {
-      audioElement.play().catch((error: any) => {
-        console.error('Failed to enable audio:', error);
-      });
-    });
-
-    setShowAutoplayPrompt(false);
-  } catch (error) {
-    console.error('Error in enableAudio:', error);
-  }
-};
-
-
-  // Fallback Text-to-Speech function
-  const speakTextFallback = (text: string) => {
-    if (speechSynthesisRef.current) {
-      // Cancel any ongoing speech
-      speechSynthesisRef.current.cancel();
-      
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.9;
-      utterance.pitch = 1.0;
-      utterance.volume = 1.0;
-      
-      // Try to use a female voice
-      const voices = speechSynthesisRef.current.getVoices();
-      const femaleVoice = voices.find(voice => 
-        voice.name.toLowerCase().includes('female') || 
-        voice.name.toLowerCase().includes('woman') ||
-        voice.name.toLowerCase().includes('samantha') ||
-        voice.name.toLowerCase().includes('karen')
-      );
-      
-      if (femaleVoice) {
-        utterance.voice = femaleVoice;
+  // Handle browser/tab close during interview
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isInterviewActive) {
+        e.preventDefault();
+        e.returnValue = '';
+        endInterview();
       }
-      
-      utterance.onstart = () => {
-        console.log('🗣️ Fallback TTS started');
-        setIsAISpeaking(true);
-        setAudioTestResult('success');
-        if (isListening) {
-          stopListening();
-        }
-      };
-      
-      utterance.onend = () => {
-        console.log('🗣️ Fallback TTS ended');
-        setIsAISpeaking(false);
-        setTimeout(() => {
-          if (isInterviewActive && !isListening) {
-            startListening();
-          }
-        }, 500);
-      };
-      
-      utterance.onerror = (error: any) => {
-        console.error('❌ Fallback TTS error:', error);
-        setIsAISpeaking(false);
-        setAudioTestResult('failed');
-      };
-      
-      speechSynthesisRef.current.speak(utterance);
-      console.log('🗣️ Speaking with fallback TTS:', text.substring(0, 50) + '...');
-    }
-  };
-
-
-
-  const formatTime = (ms: number): string => {
-    const minutes = Math.floor(ms / 60000);
-    const seconds = Math.floor((ms % 60000) / 1000);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
-
-  // Local utility to convert snake_case keys to camelCase (shallow, for session object)
-  function camelCaseSession(obj: any): any {
-    if (!obj || typeof obj !== 'object') return obj;
-    const toCamel = (s: string) =>
-      s.replace(/([-_][a-z])/g, group =>
-        group.toUpperCase().replace('-', '').replace('_', '')
-      );
-    const result: any = {};
-    for (const key in obj) {
-      result[toCamel(key)] = obj[key];
-    }
-    return result;
-  }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isInterviewActive]);
 
   const startVoiceInterview = async () => {
     try {
       setIsThinking(true);
-      setConnectionStatus('connecting');
+      setConnectionStatus(CONNECTION_STATUS.CONNECTING);
       setShowEndConfirmation(false);
 
-
-      // ✅ Resume AudioContext if needed
+      // Resume AudioContext if needed
       if (audioContextRef.current?.state === 'suspended') {
-      await audioContextRef.current.resume();
-      console.log('🎧 AudioContext resumed in startVoiceInterview');
+        await audioContextRef.current.resume();
+        console.log('🎧 AudioContext resumed in startVoiceInterview');
       }
       
       console.log('[VoiceInterview] ========== STARTING VOICE INTERVIEW ==========');
       console.log('[VoiceInterview] Selected provider:', selectedProvider);
       console.log('[VoiceInterview] participant name:', participantName);
 
-      
       const session = await VoiceInterviewService.startVoiceInterview(
         config,
         participantName,
@@ -587,7 +346,6 @@ const enableAudio = async () => {
         throw new Error('No session received from backend');
       }
 
-      // Defensive: log session object and check for participantToken
       console.log('[VoiceInterview] Session object:', session);
 
       const participantToken = session.participantToken;
@@ -609,7 +367,7 @@ const enableAudio = async () => {
 
     } catch (error) {
       console.error('[VoiceInterview] ❌ Error starting voice interview:', error);
-      setConnectionStatus('error');
+      setConnectionStatus(CONNECTION_STATUS.ERROR);
       setIsThinking(false);
 
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -621,21 +379,12 @@ const enableAudio = async () => {
     setIsInterviewActive(false);
     stopListening();
     
-    // Stop all audio
-    audioElementsRef.current.forEach(audio => {
-      audio.pause();
-    });
-    
-    if (speechSynthesisRef.current) {
-      speechSynthesisRef.current.cancel();
-    }
-    
     if (livekitProps) {
       stopAudio();
       disconnectLiveKit();
     }
     
-    // Call backend to end the voice interview session (triggers agent goodbye)
+    // Call backend to end the voice interview session
     try {
       await fetch('/api/voice-interview/end', {
         method: 'POST'
@@ -654,24 +403,6 @@ const enableAudio = async () => {
     
     onEndInterview(simulator);
   };
-
-// Handle browser/tab close during interview
-useEffect(() => {
-  const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-    if (isInterviewActive) {
-      // Optionally show a confirmation dialog (not always supported)
-      e.preventDefault();
-      e.returnValue = '';
-      // End interview cleanly
-      endInterview();
-    }
-  };
-  window.addEventListener('beforeunload', handleBeforeUnload);
-  return () => {
-    window.removeEventListener('beforeunload', handleBeforeUnload);
-  };
-}, [isInterviewActive, endInterview]);
-
 
   const handleEndInterviewClick = () => {
     setShowEndConfirmation(true);
@@ -708,104 +439,89 @@ useEffect(() => {
     speakTextFallback(testMessage);
   };
 
-  const getConnectionStatusColor = () => {
-    switch (connectionStatus) {
-      case 'connected': return 'text-green-600 bg-green-100';
-      case 'connecting': return 'text-yellow-600 bg-yellow-100';
-      case 'error': return 'text-red-600 bg-red-100';
-      default: return 'text-gray-600 bg-gray-100';
-    }
-  };
-
-  const getConnectionStatusText = () => {
-    switch (connectionStatus) {
-      case 'connected': return 'Voice Connected';
-      case 'connecting': return 'Connecting...';
-      case 'error': return 'Connection Error';
-      default: return 'Disconnected';
-    }
-  };
-
   const progress = simulator.getProgress();
-
-  // Safe participant count with null checks
   const participantCount = room?.numParticipants ?? 0;
+
+  const renderCurrentQuestion = () => {
+    // Find the last AI message (question/greeting/feedback)
+    const lastAI = [...conversationHistory].reverse().find(
+      entry => entry.speaker === 'ai'
+    );
+    
+    // Show last AI message if available
+    if (lastAI) {
+      return (
+        <div className="w-full">
+          <div className="flex items-center mb-2">
+            <Brain className="w-5 h-5 text-purple-600 mr-2" />
+            <span className="font-semibold text-purple-900">AI Interviewer</span>
+            <span className="text-xs opacity-70 ml-2">
+              {new Date(lastAI.timestamp).toLocaleTimeString()}
+            </span>
+          </div>
+          <p className="text-gray-800">{lastAI.message}</p>
+          {lastAI.type && (
+            <span className={`text-xs px-2 py-1 rounded-full mt-2 inline-block ${
+              lastAI.type === CONVERSATION_TYPES.GREETING ? 'bg-green-100 text-green-700' :
+              lastAI.type === CONVERSATION_TYPES.QUESTION ? 'bg-blue-100 text-blue-700' :
+              lastAI.type === CONVERSATION_TYPES.FEEDBACK ? 'bg-yellow-100 text-yellow-700' :
+              'bg-gray-100 text-gray-700'
+            }`}>
+              {lastAI.type}
+            </span>
+          )}
+        </div>
+      );
+    }
+    
+    // Fallback: show currentQuestion if no AI message in conversationHistory
+    if (currentQuestion && currentQuestion.trim().length > 0) {
+      return (
+        <div className="w-full">
+          <div className="flex items-center mb-2">
+            <Brain className="w-5 h-5 text-purple-600 mr-2" />
+            <span className="font-semibold text-purple-900">AI Interviewer</span>
+          </div>
+          <p className="text-gray-800">{currentQuestion}</p>
+        </div>
+      );
+    }
+    
+    // Only show the static message if interview is NOT active
+    if (!isInterviewActive) {
+      return (
+        <div className="flex items-center justify-center w-full text-gray-500">
+          <Phone className="w-8 h-8 mr-3" />
+          <span>Click "Start Voice Interview" to begin the conversation</span>
+        </div>
+      );
+    }
+    
+    // If interview is active but no AI message, show "Waiting for interviewer..."
+    return (
+      <div className="flex items-center justify-center w-full text-gray-400">
+        <Loader className="w-5 h-5 mr-2 animate-spin" />
+        <span>Waiting for interviewer...</span>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
       <div className="container mx-auto px-4 py-6">
         <div className="max-w-6xl mx-auto">
 
-          {/* Interview Starting Modal */}
-          {isThinking && (
-            <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-              <div className="bg-white rounded-2xl p-8 max-w-md mx-4 shadow-xl flex flex-col items-center">
-                <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4">
-                  <Loader className="w-8 h-8 animate-spin" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">Interview Starting...</h3>
-                <p className="text-gray-600 mb-4 text-center">
-                  Please wait, your interview will start in a few seconds.<br />
-                  The AI interviewer is joining the meeting.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Autoplay Prompt Modal */}
-          {showAutoplayPrompt && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-2xl p-8 max-w-md mx-4">
-                <div className="text-center">
-                  <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Volume2 className="w-8 h-8" />
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">Enable Audio</h3>
-                  <p className="text-gray-600 mb-6">
-                    Your browser requires user interaction to play audio. Click the button below to enable audio for the AI interviewer.
-                  </p>
-                  <button
-                    onClick={enableAudio}
-                    className="w-full px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 transition-all"
-                  >
-                    <Volume2 className="w-4 h-4 mr-2 inline" />
-                    Enable Audio
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* End Interview Confirmation Modal */}
-          {showEndConfirmation && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-2xl p-8 max-w-md mx-4">
-                <div className="text-center">
-                  <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <StopCircle className="w-8 h-8" />
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">End Voice Interview?</h3>
-                  <p className="text-gray-600 mb-6">
-                    Are you sure you want to end the voice interview? You'll receive analytics based on the conversation so far.
-                  </p>
-                  <div className="flex space-x-4">
-                    <button
-                      onClick={cancelEndInterview}
-                      className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-xl hover:bg-gray-300 transition-colors"
-                    >
-                      Continue Interview
-                    </button>
-                    <button
-                      onClick={confirmEndInterview}
-                      className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors"
-                    >
-                      End & Analyze
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Modals */}
+          <InterviewStartingModal isVisible={isThinking} />
+          <AutoplayPromptModal 
+            isVisible={showAutoplayPrompt} 
+            onEnableAudio={enableAudio} 
+          />
+          <EndInterviewModal 
+            isVisible={showEndConfirmation}
+            onConfirm={confirmEndInterview}
+            onCancel={cancelEndInterview}
+          />
 
           {/* Header */}
           <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
@@ -838,30 +554,29 @@ useEffect(() => {
                 <div className="text-sm text-gray-600 mb-2">
                   Duration: {config.duration} minutes
                 </div>
-                <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getConnectionStatusColor()}`}>
-                  {connectionStatus === 'connecting' ? (
+                <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getConnectionStatusColor(connectionStatus)}`}>
+                  {connectionStatus === CONNECTION_STATUS.CONNECTING ? (
                     <Loader className="w-4 h-4 mr-1 animate-spin" />
-                  ) : connectionStatus === 'connected' ? (
+                  ) : connectionStatus === CONNECTION_STATUS.CONNECTED ? (
                     <Signal className="w-4 h-4 mr-1" />
-                  ) : connectionStatus === 'error' ? (
+                  ) : connectionStatus === CONNECTION_STATUS.ERROR ? (
                     <AlertCircle className="w-4 h-4 mr-1" />
                   ) : (
                     <WifiOff className="w-4 h-4 mr-1" />
                   )}
-                  {getConnectionStatusText()}
+                  {getConnectionStatusText(connectionStatus)}
                 </div>
               </div>
             </div>
 
             {/* Error Display */}
-            {connectionStatus === 'error' && livekitError && (
+            {connectionStatus === CONNECTION_STATUS.ERROR && livekitError && (
               <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
                 <div className="flex items-start">
                   <AlertCircle className="w-5 h-5 text-red-600 mr-3 mt-0.5 flex-shrink-0" />
                   <div className="text-red-800 text-sm">
                     <p className="font-medium mb-1">Connection Error</p>
                     <p className="mb-2">
-                      {/* Fix: livekitError may be a string or an object */}
                       {typeof livekitError === 'string'
                         ? livekitError
                         : (livekitError as any)?.message || String(livekitError)}
@@ -895,7 +610,6 @@ useEffect(() => {
                 {!isInterviewActive ? (
                   <>
                     <button
-                      // Remove onClick={() => setShowProviderSelection(true)}
                       onClick={startVoiceInterview}
                       disabled={isThinking}
                       className="inline-flex items-center px-6 py-3 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-300 transition-all disabled:opacity-50"
@@ -918,10 +632,7 @@ useEffect(() => {
                       {audioTestResult === 'failed' && <XCircle className="w-4 h-4 ml-2 text-red-300" />}
                     </button>
                   </>
-                ) : (
-                  // Pause Interview button removed
-                  null
-                )}
+                ) : null}
                 
                 <button
                   onClick={handleEndInterviewClick}
@@ -975,77 +686,10 @@ useEffect(() => {
                   </div>
                 </div>
 
-                {/* Show only the latest AI question/message, or fallback to currentQuestion */}
                 <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 min-h-[120px] max-h-[200px] overflow-y-auto flex items-center">
-                  {(() => {
-                    // Find the last AI message (question/greeting/feedback)
-                    const lastAI = [...conversationHistory].reverse().find(
-                      entry => entry.speaker === 'ai'
-                    );
-                    // Show last AI message if available
-                    if (lastAI) {
-                      return (
-                        <div className="w-full">
-                          <div className="flex items-center mb-2">
-                            <Brain className="w-5 h-5 text-purple-600 mr-2" />
-                            <span className="font-semibold text-purple-900">AI Interviewer</span>
-                            <span className="text-xs opacity-70 ml-2">
-                              {new Date(lastAI.timestamp).toLocaleTimeString()}
-                            </span>
-                          </div>
-                          <p className="text-gray-800">{lastAI.message}</p>
-                          {lastAI.type && (
-                            <span className={`text-xs px-2 py-1 rounded-full mt-2 inline-block ${
-                              lastAI.type === 'greeting' ? 'bg-green-100 text-green-700' :
-                              lastAI.type === 'question' ? 'bg-blue-100 text-blue-700' :
-                              lastAI.type === 'feedback' ? 'bg-yellow-100 text-yellow-700' :
-                              'bg-gray-100 text-gray-700'
-                            }`}>
-                              {lastAI.type}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    }
-                    // Fallback: show currentQuestion if no AI message in conversationHistory
-                    if (currentQuestion && currentQuestion.trim().length > 0) {
-                      return (
-                        <div className="w-full">
-                          <div className="flex items-center mb-2">
-                            <Brain className="w-5 h-5 text-purple-600 mr-2" />
-                            <span className="font-semibold text-purple-900">AI Interviewer</span>
-                          </div>
-                          {/* Show currentQuestion and also the latest AI transcript if available */}
-                          <p className="text-gray-800">
-                            {currentQuestion}
-                            {/* Show the latest AI transcript if available */}
-                            {isAISpeaking && transcript && (
-                              <span className="block mt-2 text-purple-700 font-mono">
-                                {transcript}
-                              </span>
-                            )}
-                          </p>
-                        </div>
-                      );
-                    }
-                    // Only show the static message if interview is NOT active
-                    if (!isInterviewActive) {
-                      return (
-                        <div className="flex items-center justify-center w-full text-gray-500">
-                          <Phone className="w-8 h-8 mr-3" />
-                          <span>Click "Start Voice Interview" to begin the conversation</span>
-                        </div>
-                      );
-                    }
-                    // If interview is active but no AI message, show "Waiting for interviewer..."
-                    return (
-                      <div className="flex items-center justify-center w-full text-gray-400">
-                        <Loader className="w-5 h-5 mr-2 animate-spin" />
-                        <span>Waiting for interviewer...</span>
-                      </div>
-                    );
-                  })()}
+                  {renderCurrentQuestion()}
                 </div>
+              </div>
               
               {/* User Response */}
               <div className="bg-white rounded-2xl shadow-lg p-6">
@@ -1066,7 +710,6 @@ useEffect(() => {
                       )}
                     </div>
                     <p className="text-gray-800">
-                      {/* Only show transcript if user is speaking */}
                       {userSpeaking && transcript
                         ? transcript
                         : 'Your speech will appear here in real-time...'}
@@ -1093,7 +736,7 @@ useEffect(() => {
                       {speechSupported && (
                         <button
                           onClick={toggleMicrophone}
-                          disabled={!isInterviewActive || connectionStatus !== 'connected'}
+                          disabled={!isInterviewActive || connectionStatus !== CONNECTION_STATUS.CONNECTED}
                           className={`p-4 rounded-xl transition-all ${
                             isListening
                               ? 'bg-green-100 text-green-600'
@@ -1104,15 +747,14 @@ useEffect(() => {
                         </button>
                       )}
                       <div className="text-sm text-gray-600">
-                        {/* Show "Unmuted" if listening, otherwise prompt to unmute */}
                         {isListening ? "Unmuted, you may speak" : "Please unmute to answer"}
                       </div>
                     </div>
-                    {/* Remove the "Powered by GOOGLE Agent" message */}
                   </div>
                 </div>
               </div>
             </div>
+            
             {/* Notes Section */}
             <div className="bg-white rounded-2xl shadow-lg p-6">
               <div className="flex items-center mb-4">
@@ -1138,8 +780,8 @@ useEffect(() => {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-purple-700">LiveKit:</span>
-                    <span className={connectionStatus === 'connected' ? 'text-green-600' : 'text-red-600'}>
-                      {getConnectionStatusText()}
+                    <span className={connectionStatus === CONNECTION_STATUS.CONNECTED ? 'text-green-600' : 'text-red-600'}>
+                      {getConnectionStatusText(connectionStatus)}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -1188,7 +830,5 @@ useEffect(() => {
         </div>
       </div>
     </div>
-  </div>
   );
 };
-    
